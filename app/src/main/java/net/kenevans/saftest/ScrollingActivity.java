@@ -10,6 +10,7 @@ import android.content.UriPermission;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.DocumentsContract;
 import android.util.Log;
@@ -25,16 +26,18 @@ import com.google.android.material.snackbar.Snackbar;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import androidx.documentfile.provider.DocumentFile;
 
 public class ScrollingActivity extends AppCompatActivity implements IConstants {
     private TextView mTextView;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,7 +55,7 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Snackbar.make(view, "Test", Snackbar.LENGTH_LONG)
+                Snackbar.make(view, "Clear the view", Snackbar.LENGTH_LONG)
                         .setAction("Clear", new View.OnClickListener() {
                             @Override
                             public void onClick(View view) {
@@ -88,9 +91,23 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
         } else if (requestCode == REQ_DB_FILE && resultCode == RESULT_OK) {
             Uri dataUri = resultData.getData();
             // This gets an exception
-//            openDatabaseFromUri(dataUri);
+            openDatabaseFromUri(dataUri);
+        } else if (requestCode == REQ_DB_TEMP_FILE && resultCode == RESULT_OK) {
+            Uri dataUri = resultData.getData();
             openTempDatabaseFromUri(dataUri);
         }
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putCharSequence("savedText", mTextView.getText());
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Bundle savedState) {
+        super.onRestoreInstanceState(savedState);
+        mTextView.setText(savedState.getCharSequence("savedText"));
     }
 
     @Override
@@ -121,9 +138,11 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
             showInfo();
         } else if (id == R.id.action_open_file) {
             openFileFromTree();
-        } else if (id == R.id.action_open_database) {
+        } else if (id == R.id.action_open_database_from_tree) {
             openDatabaseFromTree();
-        } else if (id == R.id.action_open_database_chooser) {
+        } else if (id == R.id.action_open_temp_database) {
+            openDatabaseFromSystemFileDialogUsingTempDatabase();
+        } else if (id == R.id.action_open_database) {
             openDatabaseFromSystemFileDialog();
         } else if (id == R.id.action_clear) {
             clearText();
@@ -176,12 +195,62 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      */
     private void showInfo() {
         StringBuilder sb = new StringBuilder();
-        sb.append("\nInformation\n");
+        sb.append("\nSAF Test Info\n");
         // Get saved Uri
         String treeUriStr =
                 getPreferences(MODE_PRIVATE).getString(PREF_TREE_URI, null);
         sb.append("PREF_TREE_URI=" + treeUriStr + "\n");
         append(sb.toString());
+    }
+
+    /**
+     * List the files under PREF_TREE_URI with information about them. The
+     * information is from uriInfo
+     *
+     * @see #docUriInfo
+     */
+    private void showFiles() {
+        try {
+            SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+            String treeUriStr = prefs.getString(PREF_TREE_URI, null);
+            if (treeUriStr == null) {
+                Utils.errMsg(this, "There is no tree Uri set");
+                return;
+            }
+            Uri treeUri = Uri.parse(treeUriStr);
+            append("\n" + "Files for ");
+            String treeDocumentId =
+                    DocumentsContract.getTreeDocumentId(treeUri);
+            Uri docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri,
+                    treeDocumentId);
+            append(docUriInfo(docUri));
+//            appendLine("\n" + "Files for " + treeUri.getLastPathSegment());
+//            // Test
+//            appendLine("Internal documentId=" + DocUtils.getDocumentId
+//            (treeUri));
+//            appendLine("    isDocumentUri="
+//                    + DocumentsContract.isDocumentUri(this, treeUri));
+//            appendLine("    docUri=" + docUri);
+//            appendLine("    path=" + FileUtil.getFullPathFromUri(this,
+//                    treeUri));
+//
+//            // This returns "" for a treeUri
+//            append(docUriInfo(docUri));
+//            append(uriInfo(treeUri));
+            appendLine();
+            List<Uri> children = DocUtils.getChildren(this, treeUri);
+//            if (children == null) {
+//                Utils.errMsg(this, "Could not get children for " +
+//                treeUriStr);
+//                return;
+//            }
+            for (Uri uri : children) {
+                appendLine(docUriInfo(uri));
+            }
+        } catch (Exception ex) {
+            Utils.excMsg(this, "Error showing files", ex);
+            Log.e(TAG, "Error showing files", ex);
+        }
     }
 
     /**
@@ -292,82 +361,107 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
     }
 
     /**
-     * List the files under PREF_TREE_URI with information about them. The
-     * information is from docInfo
+     * Gets DocumentContract information for a document Uri.
      *
-     * @see #docInfo
+     * @param docUri The Uri.
+     * @return The information or "" if Uri is not a document Uri.
      */
-    private void showFiles() {
-        try {
-            SharedPreferences prefs = getPreferences(MODE_PRIVATE);
-            String treeUriStr = prefs.getString(PREF_TREE_URI, null);
-            if (treeUriStr == null) {
-                Utils.errMsg(this, "There is no tree Uri set");
-                return;
-            }
-            Uri treeUri = Uri.parse(treeUriStr);
-//            append(getUriInfo(treeUri));
-            DocumentFile top = DocumentFile.fromTreeUri(this, treeUri);
-            String topPath = FileUtil.getFullPathFromTreeUri(treeUri, this);
-            String path = (topPath != null) ? topPath : top.toString();
-            appendLine("\n" + "Files in directory " + path);
-            appendLine("    canRead=" + top.canRead() + " canWrite=" + top.canWrite());
-            appendLine("    TreeDocumentId=" + DocumentsContract.getTreeDocumentId(treeUri));
-            appendLine();
-            // This gets an exception
-//            appendLine("    DocumentId=" + DocumentsContract.getDocumentId
-//            (treeUri));
-            DocumentFile[] files = top.listFiles();
-            for (DocumentFile docFile : files) {
-                appendLine(docInfo(docFile));
-            }
-//            DocumentFile targetDocument = getDocumentFile(file, false);
-//            OutputStream outStream = this.
-//                    getContentResolver().openOutputStream(targetDocument
-//                    .getUri());
-        } catch (Exception ex) {
-            Utils.excMsg(this, "Error showing files", ex);
-            Log.e(TAG, "Error showing files", ex);
-        }
-    }
-
-    /**
-     * Get information for a DocumentFile.
-     *
-     * @param docFile The DocumentFile.
-     * @return The information.
-     */
-    private String docInfo(DocumentFile docFile) {
+    private String docUriInfo(Uri docUri) {
+        // Only works for documents
+        if (!DocumentsContract.isDocumentUri(this, docUri)) return "";
         StringBuilder sb = new StringBuilder();
-        Uri docUri = docFile.getUri();
-        String docId = DocumentsContract.getDocumentId(docUri);
-        String treeDocId = DocumentsContract.getTreeDocumentId(docUri);
-        sb.append(docFile.getName() + "\n");
-        sb.append("    docId=" + docId + "\n");
-        sb.append("    treeDocId=" + treeDocId + "\n");
-        sb.append("    docUri=" + docFile.getUri() + "\n");
-//        sb.append(getUriInfo(docUri));
+        ContentResolver contentResolver = this.getContentResolver();
+        String path = FileUtil.getFullPathFromUri(this, docUri);
+        String displayName = "NA";
+        double size = Double.NaN;
+        String sizeStr = "NA";
+        long lastModified = -1;
+        String lastModifiedStr = "NA";
+        String mimeType = "NA";
+        int flags = 0;
+        String[] projection = {
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_SIZE,
+                DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+                DocumentsContract.Document.COLUMN_MIME_TYPE,
+                DocumentsContract.Document.COLUMN_FLAGS
+        };
+        Cursor cursor = null;
+        try {
+            cursor = contentResolver.query(docUri, projection,
+                    null, null, null);
+            if (cursor != null && cursor.getCount() > 0) {
+                cursor.moveToFirst();
+                if (cursor.getColumnIndex(projection[0]) != -1) {
+                    displayName = cursor.getString(0);
+                }
+                if (cursor.getColumnIndex(projection[1]) != -1) {
+                    size = cursor.getDouble(1);
+                }
+                if (cursor.getColumnIndex(projection[2]) != -1) {
+                    lastModified = cursor.getLong(2);
+                }
+                if (cursor.getColumnIndex(projection[3]) != -1) {
+                    mimeType = cursor.getString(3);
+                }
+                if (cursor.getColumnIndex(projection[4]) != -1) {
+                    flags = cursor.getInt(4);
+                }
+            }
+        } finally {
+            DocUtils.closeQuietly(cursor);
+        }
+        if (size != Double.NaN) sizeStr = fileLength(size);
+        if (lastModified != -1) {
+            lastModifiedStr = new Date(lastModified).toString();
+        }
+        boolean canWrite =
+                (flags & DocumentsContract.Document.FLAG_SUPPORTS_WRITE) != 0;
+        boolean canDelete =
+                (flags & DocumentsContract.Document.FLAG_SUPPORTS_DELETE) != 0;
+        boolean canMove = false;
+        boolean canCopy = false;
+        if (Build.VERSION.SDK_INT >= 24) {
+            canMove =
+                    (flags & DocumentsContract.Document.FLAG_SUPPORTS_MOVE) != 0;
+            canCopy =
+                    (flags & DocumentsContract.Document.FLAG_SUPPORTS_COPY) != 0;
+        }
+        boolean canRename =
+                (flags & DocumentsContract.Document.FLAG_SUPPORTS_RENAME) != 0;
+        boolean canCreate =
+                (flags & DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE) != 0;
+        sb.append(displayName + "\n");
+        sb.append("    path=" + path + "\n");
         sb.append("    isDocumentUri=" + DocumentsContract.isDocumentUri(this,
                 docUri) + "\n");
-        sb.append("    isFile=" + docFile.isFile() + "\n");
-        sb.append("    directory=" + docFile.isDirectory() + "\n");
-        sb.append("    path=" + FileUtil.getFullPathFromUri(docUri, this) +
+        sb.append("    isDirectory="
+                + DocUtils.isDirectory(mimeType) +
                 "\n");
-        sb.append("    virtual=" + docFile.isVirtual() + "\n");
-        sb.append("    type=" + docFile.getType() + "\n");
-        sb.append("    modified=" + new Date(docFile.lastModified()) + "\n");
-        sb.append("    canRead=" + docFile.canRead() + " canWrite=" + docFile.canWrite() + "\n");
-        sb.append("    length=" + fileLength(docFile.length()) + "\n");
+//        String docId = DocumentsContract.getDocumentId(docUri);
+//        String treeDocId = DocumentsContract.getTreeDocumentId(docUri);
+//        sb.append("    treeDocId=" + treeDocId + "\n");
+//        sb.append("    docId=" + docId + "\n");
+//        sb.append("    docUri=" + docUri + "\n");
+//        sb.append("    doc path=" + docUri.getPath() + "\n");
+//        sb.append("    last path segment=" + docUri.getPath() + "\n");
+        sb.append("    size=" + sizeStr + "\n");
+        sb.append("    mime type=" + mimeType + "\n");
+        sb.append("    last modified=" + lastModifiedStr + "\n");
+        sb.append("    canWrite=" + canWrite + " canDelete=" + canDelete
+                + " canMove=" + canMove + "\n");
+        sb.append("    canCopy=" + canCopy + " canRename=" + canRename
+                + " canCreate=" + canCreate + "\n");
         return sb.toString();
     }
 
     /**
-     * Gets information about a Uri.
+     * Gets general information about a Uri.
      *
      * @param uri The Uri.
      * @return The information.
      */
-    private String getUriInfo(Uri uri) {
+    private String uriInfo(Uri uri) {
         StringBuilder sb = new StringBuilder();
         sb.append("    uri=" + uri + "\n");
         sb.append("    scheme=" + uri.getScheme() + "\n");
@@ -411,6 +505,7 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      * Opens the first data base found in the tree.
      */
     void openDatabaseFromTree() {
+        appendLine("\nOpening First Database in Tree");
         try {
             SharedPreferences prefs = getPreferences(MODE_PRIVATE);
             String treeUriStr = prefs.getString(PREF_TREE_URI, null);
@@ -419,16 +514,33 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                 return;
             }
             Uri treeUri = Uri.parse(treeUriStr);
-            DocumentFile top = DocumentFile.fromTreeUri(this, treeUri);
-            DocumentFile[] files = top.listFiles();
-            String path;
-            Uri docUri;
+            Uri childrenUri =
+                    DocumentsContract.buildChildDocumentsUriUsingTree(treeUri,
+                            DocumentsContract.getTreeDocumentId(treeUri));
+            List<Uri> children = new ArrayList<>();
+            Cursor cursor = null;
+            try {
+                cursor = this.getContentResolver().query(childrenUri,
+                        new String[]{
+                                DocumentsContract.Document.COLUMN_DOCUMENT_ID},
+                        null,
+                        null, null);
+                String documentId;
+                Uri documentUri;
+                while (cursor.moveToNext()) {
+                    documentId = cursor.getString(0);
+                    documentUri =
+                            DocumentsContract.buildDocumentUriUsingTree(treeUri,
+                                    documentId);
+                    children.add(documentUri);
+                }
+            } finally {
+                DocUtils.closeQuietly(cursor);
+            }
             boolean found = false;
-            // Look for the first .db file
-            Log.d(TAG, "openDatabaseFromTree: files.length=" + files.length);
-            for (DocumentFile docFile : files) {
-                docUri = docFile.getUri();
-                path = FileUtil.getFullPathFromUri(docUri, this);
+            String path;
+            for (Uri uri : children) {
+                path = FileUtil.getFullPathFromUri(this, uri);
                 Log.d(TAG, "    path=" + path);
                 if (path.endsWith(".db")) {
                     found = true;
@@ -439,8 +551,10 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                 Utils.errMsg(this, "Did not find any .db files");
             }
         } catch (Exception ex) {
-            Utils.excMsg(this, "Error finding a database to open", ex);
-            Log.e(TAG, "Error finding a database to open", ex);
+            String msg = "Error opening database";
+            appendLine(msg);
+            Utils.excMsg(this, msg, ex);
+            Log.e(TAG, msg, ex);
         }
     }
 
@@ -448,6 +562,7 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      * Opens the first data base found in the tree.
      */
     void openFileFromTree() {
+        appendLine("\nOpening First File in Tree");
         try {
             SharedPreferences prefs = getPreferences(MODE_PRIVATE);
             String treeUriStr = prefs.getString(PREF_TREE_URI, null);
@@ -456,21 +571,16 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                 return;
             }
             Uri treeUri = Uri.parse(treeUriStr);
-            DocumentFile top = DocumentFile.fromTreeUri(this, treeUri);
-            DocumentFile[] files = top.listFiles();
-            String path;
-            Uri docUri;
-            // Use the first file
-            Log.d(TAG, "openDatabaseFromFile: files.length=" + files.length);
-            if (files.length == 0) {
+            List<Uri> children = DocUtils.getChildren(this, treeUri);
+            Log.d(TAG,
+                    "openDatabaseFromFile: children.size()=" + children.size());
+            if (children.size() == 0) {
                 Utils.errMsg(this, "There are no files in the tree");
                 return;
             }
-            DocumentFile docFile = files[0];
-            docUri = docFile.getUri();
-            path = FileUtil.getFullPathFromUri(docUri, this);
+            Uri docUri = children.get(0);
+            String path = FileUtil.getFullPathFromUri(this, docUri);
             File file = new File(path);
-            appendLine("\nOpen File from Tree");
             appendLine("    path=" + file.getPath());
             if (!file.exists()) {
                 appendLine("    Does not exist");
@@ -479,8 +589,10 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
             appendLine("    canRead=" + file.canRead()
                     + " canWrite=" + file.canWrite());
         } catch (Exception ex) {
-            Utils.excMsg(this, "Error finding a file to open", ex);
-            Log.e(TAG, "Error finding a file to open", ex);
+            String msg = "Error finding a file to open";
+            appendLine(msg);
+            Utils.excMsg(this, msg, ex);
+            Log.e(TAG, msg, ex);
         }
     }
 
@@ -494,10 +606,21 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
     }
 
     /**
+     * Opens a database picked by the system file chooser. Uses a temporary
+     * file that is a copy of the database.
+     */
+    void openDatabaseFromSystemFileDialogUsingTempDatabase() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT).setType("*/*");
+        startActivityForResult(Intent.createChooser(intent, "Select a " +
+                "database"), REQ_DB_TEMP_FILE);
+    }
+
+    /**
      * Creates a copy of a database picked by the system file chooser and
      * opens that.
      */
     void openTempDatabaseFromUri(Uri uri) {
+        appendLine("\nOpening Database Using a Temporary Copy");
         try {
             InputStream inputStream = getContentResolver().openInputStream(uri);
             File file = File.createTempFile("sqlite", ".db");
@@ -510,8 +633,11 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
             outputStream.close();
             openDatabaseFromFile(file.getPath());
         } catch (Exception ex) {
-            Utils.excMsg(this, "Failed to open temp database from " + uri, ex);
-            Log.e(TAG, "Failed to open temp database from " + uri, ex);
+            String msg = "Failed to open temp database from " + uri;
+            appendLine(msg);
+            Utils.excMsg(this, msg, ex);
+
+            Log.e(TAG, msg, ex);
         }
     }
 
@@ -523,15 +649,19 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      * @param uri The Uri.
      */
     void openDatabaseFromUri(Uri uri) {
+        appendLine("\nOpening Database Using Path from Uri");
         Log.d(TAG, "openDatabaseFromUri: uri=" + uri);
         try {
-            String path = FileUtil.getFullPathFromUri(uri, this);
+            String path = FileUtil.getFullPathFromUri(this, uri);
+            appendLine("    path=" + path);
             Log.d(TAG, "openDatabaseFromUri: uri=" + uri);
             Log.d(TAG, "    path=" + path);
             openDatabaseFromFile(path);
         } catch (Exception ex) {
-            Utils.excMsg(this, "Failed to open database from " + uri, ex);
-            Log.e(TAG, "Failed to open database from " + uri, ex);
+            String msg = "Failed to open database from " + uri;
+            appendLine(msg);
+            Utils.excMsg(this, msg, ex);
+            Log.e(TAG, msg, ex);
         }
     }
 
@@ -543,7 +673,7 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      */
     void openDatabaseFromFile(String filePath) {
         Log.d(TAG, "openDatabaseFromFile: filePath=" + filePath);
-        appendLine("\nDatabase: " + filePath);
+        appendLine("Database: " + filePath);
         SQLiteDatabase db = null;
         Cursor cursor = null;
         try {
@@ -552,7 +682,6 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                 Utils.errMsg(this, "Cannot open database");
                 return;
             }
-            appendLine("Path=" + db.getPath());
             appendLine("Version=" + db.getVersion());
             String SQL_GET_ALL_TABLES = "SELECT * FROM sqlite_master WHERE " +
                     "type='table'";
@@ -574,7 +703,10 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                 appendLine("    " + name + " type=" + type);
             }
         } catch (Exception ex) {
-            Utils.excMsg(this, "Failed to open Database from " + filePath, ex);
+            String msg = "Failed to open Database from " + filePath;
+            appendLine(msg);
+            Utils.excMsg(this, msg, ex);
+            Log.e(TAG, msg, ex);
         } finally {
             if (cursor != null) cursor.close();
             if (db != null) db.close();

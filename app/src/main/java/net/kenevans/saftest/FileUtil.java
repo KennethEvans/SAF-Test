@@ -26,10 +26,13 @@ public final class FileUtil implements IConstants {
     private static final String PRIMARY_VOLUME_NAME = "primary";
 
     @Nullable
-    public static String getFullPathFromUri(@Nullable final Uri treeUri,
-                                                Context con) {
+    public static String getFullPathFromUri(Context ctx,
+                                            @Nullable final Uri treeUri) {
         if (treeUri == null) return null;
-        String volumePath = getVolumePath(getVolumeIdFromUri(treeUri), con);
+        if (!DocumentsContract.isDocumentUri(ctx, treeUri)) {
+            return getFullPathFromTreeUri(ctx, treeUri);
+        }
+        String volumePath = getVolumePath(getVolumeIdFromUri(treeUri), ctx);
         if (volumePath == null) return File.separator;
         if (volumePath.endsWith(File.separator))
             volumePath = volumePath.substring(0, volumePath.length() - 1);
@@ -49,10 +52,10 @@ public final class FileUtil implements IConstants {
     }
 
     @Nullable
-    public static String getFullPathFromTreeUri(@Nullable final Uri treeUri,
-                                                Context con) {
+    public static String getFullPathFromTreeUri(Context ctx,
+                                                @Nullable final Uri treeUri) {
         if (treeUri == null) return null;
-        String volumePath = getVolumePath(getVolumeIdFromTreeUri(treeUri), con);
+        String volumePath = getVolumePath(getVolumeIdFromTreeUri(treeUri), ctx);
         if (volumePath == null) return File.separator;
         if (volumePath.endsWith(File.separator))
             volumePath = volumePath.substring(0, volumePath.length() - 1);
@@ -160,7 +163,7 @@ public final class FileUtil implements IConstants {
     }
 
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-        private static String getDocumentPathFromTreeUri(final Uri treeUri) {
+    private static String getDocumentPathFromTreeUri(final Uri treeUri) {
         Log.d(TAG, "getDocumentPathFromTreeUri treeUri=" + treeUri);
         final String docId = DocumentsContract.getTreeDocumentId(treeUri);
         Log.d(TAG, "    docId=" + docId);

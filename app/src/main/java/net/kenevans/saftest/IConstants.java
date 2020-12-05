@@ -37,4 +37,5 @@ interface IConstants {
     int REQ_GET_TREE = 10;
     int REQ_CREATE_DOCUMENT = 11;
     int REQ_DB_FILE = 20;
+    int REQ_DB_TEMP_FILE = 21;
 }

@@ -7,10 +7,12 @@
     <string name="action_select_permission">Select Permission</string>
     <string name="action_show_files">Show Files</string>
     <string name="action_open_file">Open First File From Tree</string>
-    <string name="action_open_database">Open Database From Tree</string>
-    <string name="action_open_temp_database">Open Database From Chooser</string>
+    <string name="action_open_database_from_tree">Open Database From Tree</string>
+    <string name="action_open_database">Open Database From Chooser</string>
+    <string name="action_open_temp_database">Open Database Copy From Chooser</string>
     <string name="action_show_permissions">Show Permissions</string>
-    <string name="action_show_info">Information</string>
+    <string name="action_show_info">Info</string>
+    <string name="image">Image</string>
 
     <!-- Utils -->
     <string name="error">Error</string>
