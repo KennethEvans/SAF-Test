@@ -2,9 +2,15 @@
     <string name="app_name">SAF Test</string>
     <string name="action_settings">Settings</string>
     <string name="action_clear">Clear</string>
-    <string name="action_permission">Get Permissions</string>
+    <string name="action_request_permission">Request Permission</string>
+    <string name="action_release_permission">Release Permission</string>
+    <string name="action_select_permission">Select Permission</string>
     <string name="action_show_files">Show Files</string>
-    <string name="action_open_Database">OpenDatabase</string>
+    <string name="action_open_file">Open First File From Tree</string>
+    <string name="action_open_database">Open Database From Tree</string>
+    <string name="action_open_temp_database">Open Database From Chooser</string>
+    <string name="action_show_permissions">Show Permissions</string>
+    <string name="action_show_info">Information</string>
 
     <!-- Utils -->
     <string name="error">Error</string>
