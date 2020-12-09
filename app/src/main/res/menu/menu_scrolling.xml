@@ -1,7 +1,7 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    tools:context="net.kenevans.saftest.ScrollingActivity">
+    tools:context="net.kenevans.saftest.SAFTestActivity">
     <item
         android:id="@+id/action_clear"
         android:orderInCategory="1"

@@ -1,6 +1,5 @@
 package net.kenevans.saftest;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ContentResolver;
 import android.content.DialogInterface;
@@ -12,6 +11,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.provider.DocumentsContract;
 import android.util.Log;
 import android.view.Menu;
@@ -35,7 +35,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
-public class ScrollingActivity extends AppCompatActivity implements IConstants {
+public class SAFTestActivity extends AppCompatActivity implements IConstants {
     private TextView mTextView;
 
 
@@ -69,31 +69,34 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
     @Override
     public final void onActivityResult(final int requestCode,
                                        final int resultCode,
-                                       final Intent resultData) {
-        super.onActivityResult(requestCode, resultCode, resultData);
-        if (requestCode == REQ_GET_TREE) {
+                                       final Intent intent) {
+        super.onActivityResult(requestCode, resultCode, intent);
+        Log.d(TAG, this.getClass().getSimpleName()
+                + ".onActivityResult: requestCode=" + requestCode
+                + " resultCode=" + resultCode);
+        if (requestCode == REQ_GET_TREE && resultCode == RESULT_CANCELED) {
             Uri treeUri;
-            if (resultCode == Activity.RESULT_OK) {
-                // Get Uri from Storage Access Framework.
-                treeUri = resultData.getData();
+            // Get Uri from Storage Access Framework.
+            treeUri = intent.getData();
 
-                SharedPreferences.Editor editor = getPreferences(MODE_PRIVATE)
-                        .edit();
-                editor.putString(PREF_TREE_URI, treeUri.toString());
-                editor.apply();
+            SharedPreferences.Editor editor =
+                    PreferenceManager.getDefaultSharedPreferences(this)
+                            .edit();
+            editor.putString(PREF_TREE_URI, treeUri.toString());
+            editor.apply();
 
-                // Persist access permissions.
-                final int takeFlags = resultData.getFlags()
-                        & (Intent.FLAG_GRANT_READ_URI_PERMISSION |
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                this.getContentResolver().takePersistableUriPermission(treeUri, takeFlags);
-            }
+            // Persist access permissions.
+            final int takeFlags = intent.getFlags()
+                    & (Intent.FLAG_GRANT_READ_URI_PERMISSION |
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            this.getContentResolver().takePersistableUriPermission(treeUri,
+                    takeFlags);
         } else if (requestCode == REQ_DB_FILE && resultCode == RESULT_OK) {
-            Uri dataUri = resultData.getData();
+            Uri dataUri = intent.getData();
             // This gets an exception
             openDatabaseFromUri(dataUri);
         } else if (requestCode == REQ_DB_TEMP_FILE && resultCode == RESULT_OK) {
-            Uri dataUri = resultData.getData();
+            Uri dataUri = intent.getData();
             openTempDatabaseFromUri(dataUri);
         }
     }
@@ -199,7 +202,7 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
         // Get saved Uri
         String treeUriStr =
                 getPreferences(MODE_PRIVATE).getString(PREF_TREE_URI, null);
-        sb.append("PREF_TREE_URI=" + treeUriStr + "\n");
+        sb.append("PREF_TREE_URI=").append(treeUriStr).append("\n");
         append(sb.toString());
     }
 
@@ -211,7 +214,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      */
     private void showFiles() {
         try {
-            SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+            SharedPreferences prefs = PreferenceManager
+                    .getDefaultSharedPreferences(this);
             String treeUriStr = prefs.getString(PREF_TREE_URI, null);
             if (treeUriStr == null) {
                 Utils.errMsg(this, "There is no tree Uri set");
@@ -257,22 +261,14 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      * Shows information about the persisted permissions.
      */
     private void showPermissions() {
-        ContentResolver resolver = this.getContentResolver();
-        List<UriPermission> permissionList =
-                resolver.getPersistedUriPermissions();
-        StringBuilder sb = new StringBuilder();
-        for (UriPermission permission : permissionList) {
-            sb.append(permission.getUri() + "\n");
-            sb.append("    time=" + new Date(permission.getPersistedTime()) + "\n");
-            sb.append("    access=" + (permission.isReadPermission() ? "R" : "")
-                    + (permission.isWritePermission() ? "W" : "") + "\n");
-            sb.append("    special objects flag=" + permission.describeContents() + "\n");
-            sb.append("\n");
-        }
-        appendLine("\nPersistent Permissions");
-        append(sb.toString());
+        String info = UriUtils.showPermissions(this);
+        appendLine();
+        append(info);
     }
 
+    /**
+     * Allows the user to select any one of the persistent permissions.
+     */
     private void selectPermission() {
         ContentResolver resolver = this.getContentResolver();
         final List<UriPermission> permissionList =
@@ -283,7 +279,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
             return;
         }
         String[] items = new String[nPermissions];
-        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        SharedPreferences prefs = PreferenceManager
+                .getDefaultSharedPreferences(this);
         String treeUriStr = prefs.getString(PREF_TREE_URI, null);
         Uri uri;
         String uriStr;
@@ -303,8 +300,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                     public void onClick(DialogInterface dialog, int item) {
                         dialog.dismiss();
                         SharedPreferences.Editor editor =
-                                getPreferences(MODE_PRIVATE)
-                                        .edit();
+                                PreferenceManager.getDefaultSharedPreferences(
+                                        SAFTestActivity.this).edit();
                         editor.putString(PREF_TREE_URI,
                                 permissionList.get(item).getUri().toString());
                         editor.apply();
@@ -314,6 +311,9 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
         alert.show();
     }
 
+    /**
+     * Brings up a dialog to select a permission to release.
+     */
     private void releasePermission() {
         ContentResolver resolver = this.getContentResolver();
         final List<UriPermission> permissionList =
@@ -324,7 +324,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
             return;
         }
         String[] items = new String[nPermissions];
-        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        SharedPreferences prefs = PreferenceManager
+                .getDefaultSharedPreferences(this);
         String treeUriStr = prefs.getString(PREF_TREE_URI, null);
         Uri uri;
         String uriStr;
@@ -345,13 +346,14 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                         dialog.dismiss();
                         Uri uri = permissionList.get(item).getUri();
                         ContentResolver resolver =
-                                ScrollingActivity.this.getContentResolver();
+                                SAFTestActivity.this.getContentResolver();
                         resolver.releasePersistableUriPermission(uri,
                                 Intent.FLAG_GRANT_READ_URI_PERMISSION |
                                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                         // Set the preference to null
                         SharedPreferences.Editor editor =
-                                getPreferences(MODE_PRIVATE).edit();
+                                PreferenceManager.getDefaultSharedPreferences(
+                                        SAFTestActivity.this).edit();
                         editor.putString(PREF_TREE_URI, null);
                         editor.apply();
                     }
@@ -386,10 +388,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                 DocumentsContract.Document.COLUMN_MIME_TYPE,
                 DocumentsContract.Document.COLUMN_FLAGS
         };
-        Cursor cursor = null;
-        try {
-            cursor = contentResolver.query(docUri, projection,
-                    null, null, null);
+        try (Cursor cursor = contentResolver.query(docUri, projection,
+                null, null, null)) {
             if (cursor != null && cursor.getCount() > 0) {
                 cursor.moveToFirst();
                 if (cursor.getColumnIndex(projection[0]) != -1) {
@@ -408,13 +408,14 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                     flags = cursor.getInt(4);
                 }
             }
-        } finally {
-            DocUtils.closeQuietly(cursor);
         }
-        if (size != Double.NaN) sizeStr = fileLength(size);
+        if (size != Double.NaN) sizeStr =
+
+                prettyFileLength(size);
         if (lastModified != -1) {
             lastModifiedStr = new Date(lastModified).toString();
         }
+
         boolean canWrite =
                 (flags & DocumentsContract.Document.FLAG_SUPPORTS_WRITE) != 0;
         boolean canDelete =
@@ -427,17 +428,16 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
             canCopy =
                     (flags & DocumentsContract.Document.FLAG_SUPPORTS_COPY) != 0;
         }
+
         boolean canRename =
                 (flags & DocumentsContract.Document.FLAG_SUPPORTS_RENAME) != 0;
         boolean canCreate =
                 (flags & DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE) != 0;
-        sb.append(displayName + "\n");
-        sb.append("    path=" + path + "\n");
-        sb.append("    isDocumentUri=" + DocumentsContract.isDocumentUri(this,
-                docUri) + "\n");
-        sb.append("    isDirectory="
-                + DocUtils.isDirectory(mimeType) +
-                "\n");
+        sb.append(displayName).append("\n");
+        sb.append("    path=").append(path).append("\n");
+        sb.append("    isDocumentUri=").append(DocumentsContract.isDocumentUri(this,
+                docUri)).append("\n");
+        sb.append("    isDirectory=").append(DocUtils.isDirectory(mimeType)).append("\n");
 //        String docId = DocumentsContract.getDocumentId(docUri);
 //        String treeDocId = DocumentsContract.getTreeDocumentId(docUri);
 //        sb.append("    treeDocId=" + treeDocId + "\n");
@@ -445,13 +445,11 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
 //        sb.append("    docUri=" + docUri + "\n");
 //        sb.append("    doc path=" + docUri.getPath() + "\n");
 //        sb.append("    last path segment=" + docUri.getPath() + "\n");
-        sb.append("    size=" + sizeStr + "\n");
-        sb.append("    mime type=" + mimeType + "\n");
-        sb.append("    last modified=" + lastModifiedStr + "\n");
-        sb.append("    canWrite=" + canWrite + " canDelete=" + canDelete
-                + " canMove=" + canMove + "\n");
-        sb.append("    canCopy=" + canCopy + " canRename=" + canRename
-                + " canCreate=" + canCreate + "\n");
+        sb.append("    size=").append(sizeStr).append("\n");
+        sb.append("    mime type=").append(mimeType).append("\n");
+        sb.append("    last modified=").append(lastModifiedStr).append("\n");
+        sb.append("    canWrite=").append(canWrite).append(" canDelete=").append(canDelete).append(" canMove=").append(canMove).append("\n");
+        sb.append("    canCopy=").append(canCopy).append(" canRename=").append(canRename).append(" canCreate=").append(canCreate).append("\n");
         return sb.toString();
     }
 
@@ -463,16 +461,16 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      */
     private String uriInfo(Uri uri) {
         StringBuilder sb = new StringBuilder();
-        sb.append("    uri=" + uri + "\n");
-        sb.append("    scheme=" + uri.getScheme() + "\n");
-        sb.append("    authority=" + uri.getAuthority() + "\n");
-        sb.append("    fragment=" + uri.getFragment() + "\n");
-        sb.append("    scheme=" + uri.getScheme() + "\n");
-        sb.append("    path=" + uri.getPath() + "\n");
-        sb.append("    last path segment=" + uri.getLastPathSegment() + "\n");
+        sb.append("    uri=").append(uri).append("\n");
+        sb.append("    scheme=").append(uri.getScheme()).append("\n");
+        sb.append("    authority=").append(uri.getAuthority()).append("\n");
+        sb.append("    fragment=").append(uri.getFragment()).append("\n");
+        sb.append("    scheme=").append(uri.getScheme()).append("\n");
+        sb.append("    path=").append(uri.getPath()).append("\n");
+        sb.append("    last path segment=").append(uri.getLastPathSegment()).append("\n");
         List<String> segments = uri.getPathSegments();
         for (String segment : segments) {
-            sb.append("    path segment=" + segment + "\n");
+            sb.append("    path segment=").append(segment).append("\n");
         }
         return sb.toString();
     }
@@ -483,7 +481,7 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      * @param length The given length.
      * @return The formatted String.
      */
-    private String fileLength(double length) {
+    private String prettyFileLength(double length) {
         if (length < 1024) {
             return String.format(Locale.US, "%.0f", length) + " Bytes";
         } else if (length < 1024d * 1024) {
@@ -507,7 +505,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
     void openDatabaseFromTree() {
         appendLine("\nOpening First Database in Tree");
         try {
-            SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+            SharedPreferences prefs = PreferenceManager
+                    .getDefaultSharedPreferences(this);
             String treeUriStr = prefs.getString(PREF_TREE_URI, null);
             if (treeUriStr == null) {
                 Utils.errMsg(this, "There is no tree Uri set");
@@ -518,13 +517,10 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                     DocumentsContract.buildChildDocumentsUriUsingTree(treeUri,
                             DocumentsContract.getTreeDocumentId(treeUri));
             List<Uri> children = new ArrayList<>();
-            Cursor cursor = null;
-            try {
-                cursor = this.getContentResolver().query(childrenUri,
-                        new String[]{
-                                DocumentsContract.Document.COLUMN_DOCUMENT_ID},
-                        null,
-                        null, null);
+            try (Cursor cursor = this.getContentResolver().query(childrenUri,
+                    new String[]{
+                            DocumentsContract.Document.COLUMN_DOCUMENT_ID},
+                    null, null, null)) {
                 String documentId;
                 Uri documentUri;
                 while (cursor.moveToNext()) {
@@ -534,15 +530,13 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                                     documentId);
                     children.add(documentUri);
                 }
-            } finally {
-                DocUtils.closeQuietly(cursor);
             }
             boolean found = false;
             String path;
             for (Uri uri : children) {
                 path = FileUtil.getFullPathFromUri(this, uri);
                 Log.d(TAG, "    path=" + path);
-                if (path.endsWith(".db")) {
+                if (path != null && path.endsWith(".db")) {
                     found = true;
                     openDatabaseFromFile(path);
                 }
@@ -550,7 +544,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
             if (!found) {
                 Utils.errMsg(this, "Did not find any .db files");
             }
-        } catch (Exception ex) {
+        } catch (
+                Exception ex) {
             String msg = "Error opening database";
             appendLine(msg);
             Utils.excMsg(this, msg, ex);
@@ -564,7 +559,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
     void openFileFromTree() {
         appendLine("\nOpening First File in Tree");
         try {
-            SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+            SharedPreferences prefs = PreferenceManager
+                    .getDefaultSharedPreferences(this);
             String treeUriStr = prefs.getString(PREF_TREE_URI, null);
             if (treeUriStr == null) {
                 Utils.errMsg(this, "There is no tree Uri set");
@@ -579,7 +575,12 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
                 return;
             }
             Uri docUri = children.get(0);
+            // Note: Should get this from the uri w/o making a File
             String path = FileUtil.getFullPathFromUri(this, docUri);
+            if (path == null) {
+                appendLine("    Does not exist");
+                return;
+            }
             File file = new File(path);
             appendLine("    path=" + file.getPath());
             if (!file.exists()) {
@@ -600,7 +601,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      * Opens a database picked by the system file chooser.
      */
     void openDatabaseFromSystemFileDialog() {
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT).setType("*/*");
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT).setType(
+                "*/*");
         startActivityForResult(Intent.createChooser(intent, "Select a " +
                 "database"), REQ_DB_FILE);
     }
@@ -610,7 +612,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      * file that is a copy of the database.
      */
     void openDatabaseFromSystemFileDialogUsingTempDatabase() {
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT).setType("*/*");
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT).setType(
+                "*/*");
         startActivityForResult(Intent.createChooser(intent, "Select a " +
                 "database"), REQ_DB_TEMP_FILE);
     }
@@ -621,8 +624,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
      */
     void openTempDatabaseFromUri(Uri uri) {
         appendLine("\nOpening Database Using a Temporary Copy");
-        try {
-            InputStream inputStream = getContentResolver().openInputStream(uri);
+        try (InputStream inputStream =
+                     getContentResolver().openInputStream(uri)) {
             File file = File.createTempFile("sqlite", ".db");
             FileOutputStream outputStream = new FileOutputStream(file);
             byte[] buff = new byte[1024];
@@ -666,7 +669,8 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
     }
 
     /**
-     * Opens a database from a file path. (The only way it can be done as far
+     * Opens a database from a file path. (The only way it can be done as
+     * far
      * as we know.)
      *
      * @param filePath The path.
@@ -674,42 +678,39 @@ public class ScrollingActivity extends AppCompatActivity implements IConstants {
     void openDatabaseFromFile(String filePath) {
         Log.d(TAG, "openDatabaseFromFile: filePath=" + filePath);
         appendLine("Database: " + filePath);
-        SQLiteDatabase db = null;
-        Cursor cursor = null;
-        try {
-            db = SQLiteDatabase.openDatabase(filePath, null, 0);
+        try (SQLiteDatabase db = SQLiteDatabase.openDatabase(filePath,
+                null, 0)) {
             if (db == null) {
                 Utils.errMsg(this, "Cannot open database");
                 return;
             }
             appendLine("Version=" + db.getVersion());
-            String SQL_GET_ALL_TABLES = "SELECT * FROM sqlite_master WHERE " +
+            String SQL_GET_ALL_TABLES = "SELECT * FROM sqlite_master " +
+                    "WHERE " +
                     "type='table'";
-            cursor = db.rawQuery(SQL_GET_ALL_TABLES, null);
-            if (cursor == null) {
-                Utils.errMsg(this, "Failed to get tables");
-                return;
-            }
-            appendLine("Number of tables=" + cursor.getCount());
-            String[] colNames = cursor.getColumnNames();
-            appendLine("Column Names");
-            for (String col : colNames) {
-                appendLine("    " + col);
-            }
-            appendLine("Tables");
-            while (cursor.moveToNext()) {
-                String name = cursor.getString(1);
-                String type = cursor.getString(0);
-                appendLine("    " + name + " type=" + type);
+            try (Cursor cursor = db.rawQuery(SQL_GET_ALL_TABLES, null)) {
+                if (cursor == null) {
+                    Utils.errMsg(this, "Failed to get tables");
+                    return;
+                }
+                appendLine("Number of tables=" + cursor.getCount());
+                String[] colNames = cursor.getColumnNames();
+                appendLine("Column Names");
+                for (String col : colNames) {
+                    appendLine("    " + col);
+                }
+                appendLine("Tables");
+                while (cursor.moveToNext()) {
+                    String name = cursor.getString(1);
+                    String type = cursor.getString(0);
+                    appendLine("    " + name + " type=" + type);
+                }
             }
         } catch (Exception ex) {
             String msg = "Failed to open Database from " + filePath;
             appendLine(msg);
             Utils.excMsg(this, msg, ex);
             Log.e(TAG, msg, ex);
-        } finally {
-            if (cursor != null) cursor.close();
-            if (db != null) db.close();
         }
     }
 }

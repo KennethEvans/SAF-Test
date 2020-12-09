@@ -7,7 +7,6 @@ import android.net.Uri;
 import android.provider.DocumentsContract;
 import android.util.Log;
 
-import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -21,14 +20,12 @@ public class DocUtils implements IConstants {
                 DocumentsContract.buildChildDocumentsUriUsingTree(uri,
                         DocumentsContract.getTreeDocumentId(uri));
         List<Uri> children = new ArrayList<>();
-        Cursor cursor = null;
-        try {
-            cursor = contentResolver.query(childrenUri,
-                    new String[]{
-                            DocumentsContract.Document.COLUMN_DOCUMENT_ID},
-                    null,
-                    null,
-                    null);
+        try (Cursor cursor = contentResolver.query(childrenUri,
+                new String[]{
+                        DocumentsContract.Document.COLUMN_DOCUMENT_ID},
+                null,
+                null,
+                null)) {
             String documentId;
             Uri documentUri;
             while (cursor.moveToNext()) {
@@ -37,8 +34,6 @@ public class DocUtils implements IConstants {
                         documentId);
                 children.add(documentUri);
             }
-        } finally {
-            closeQuietly(cursor);
         }
         return children;
     }
@@ -74,13 +69,11 @@ public class DocUtils implements IConstants {
         while (!dirNodes.isEmpty()) {
             children = dirNodes.remove(0); // get the item from top
             Log.d(TAG, "node uri: " + children);
-            Cursor cursor = null;
-            try {
-                cursor = contentResolver.query(children, new String[]{
-                                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-                                DocumentsContract.Document.COLUMN_MIME_TYPE},
-                        null, null, null);
+            try (Cursor cursor = contentResolver.query(children, new String[]{
+                            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                            DocumentsContract.Document.COLUMN_MIME_TYPE},
+                    null, null, null)) {
                 while (cursor.moveToNext()) {
                     final String docId = cursor.getString(0);
                     final String name = cursor.getString(1);
@@ -93,29 +86,29 @@ public class DocUtils implements IConstants {
                         dirNodes.add(newNode);
                     }
                 }
-            } finally {
-                closeQuietly(cursor);
             }
         }
         return dirNodes;
     }
 
-    // Util method to check if the mime type is a directory
-    static public boolean isDirectory(Context ctx, Uri uri) {
-        if (!DocumentsContract.isDocumentUri(ctx, uri)) return false;
-        ContentResolver contentResolver = ctx.getContentResolver();
-        Cursor cursor = null;
+    /**
+     * Check if the mime type of a given document Uri is a directory.
+     *
+     * @param context The context.
+     * @param uri     The document uri.
+     * @return The mime type.
+     */
+    static public boolean isDirectory(Context context, Uri uri) {
+        if (!DocumentsContract.isDocumentUri(context, uri)) return false;
+        ContentResolver contentResolver = context.getContentResolver();
         String mimeType = "NA";
-        try {
-            cursor = contentResolver.query(uri, new String[]{
-                            DocumentsContract.Document.COLUMN_MIME_TYPE},
-                    null, null, null);
+        try (Cursor cursor = contentResolver.query(uri, new String[]{
+                        DocumentsContract.Document.COLUMN_MIME_TYPE},
+                null, null, null)) {
             if (cursor != null && cursor.getCount() > 0) {
                 cursor.moveToFirst();
                 mimeType = cursor.getString(0);
             }
-        } finally {
-            closeQuietly(cursor);
         }
         return DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType);
     }
@@ -123,19 +116,6 @@ public class DocUtils implements IConstants {
     // Util method to check if the mime type is a directory
     static public boolean isDirectory(String mimeType) {
         return DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType);
-    }
-
-    // Util method to close a closeable
-    static public void closeQuietly(Closeable closeable) {
-        if (closeable != null) {
-            try {
-                closeable.close();
-            } catch (RuntimeException re) {
-                throw re;
-            } catch (Exception ignore) {
-                // ignore exception
-            }
-        }
     }
 
     /**
