@@ -79,9 +79,8 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
             // Get Uri from Storage Access Framework.
             treeUri = intent.getData();
 
-            SharedPreferences.Editor editor =
-                    PreferenceManager.getDefaultSharedPreferences(this)
-                            .edit();
+            SharedPreferences.Editor editor = getPreferences(MODE_PRIVATE)
+                    .edit();
             editor.putString(PREF_TREE_URI, treeUri.toString());
             editor.apply();
 
@@ -214,8 +213,7 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
      */
     private void showFiles() {
         try {
-            SharedPreferences prefs = PreferenceManager
-                    .getDefaultSharedPreferences(this);
+            SharedPreferences prefs = getPreferences(MODE_PRIVATE);
             String treeUriStr = prefs.getString(PREF_TREE_URI, null);
             if (treeUriStr == null) {
                 Utils.errMsg(this, "There is no tree Uri set");
@@ -279,8 +277,7 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
             return;
         }
         String[] items = new String[nPermissions];
-        SharedPreferences prefs = PreferenceManager
-                .getDefaultSharedPreferences(this);
+        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
         String treeUriStr = prefs.getString(PREF_TREE_URI, null);
         Uri uri;
         String uriStr;
@@ -299,9 +296,8 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
                 new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int item) {
                         dialog.dismiss();
-                        SharedPreferences.Editor editor =
-                                PreferenceManager.getDefaultSharedPreferences(
-                                        SAFTestActivity.this).edit();
+                        SharedPreferences.Editor editor = getPreferences(MODE_PRIVATE)
+                                .edit();
                         editor.putString(PREF_TREE_URI,
                                 permissionList.get(item).getUri().toString());
                         editor.apply();
@@ -324,8 +320,7 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
             return;
         }
         String[] items = new String[nPermissions];
-        SharedPreferences prefs = PreferenceManager
-                .getDefaultSharedPreferences(this);
+        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
         String treeUriStr = prefs.getString(PREF_TREE_URI, null);
         Uri uri;
         String uriStr;
@@ -351,9 +346,8 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
                                 Intent.FLAG_GRANT_READ_URI_PERMISSION |
                                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                         // Set the preference to null
-                        SharedPreferences.Editor editor =
-                                PreferenceManager.getDefaultSharedPreferences(
-                                        SAFTestActivity.this).edit();
+                        SharedPreferences.Editor editor = getPreferences(MODE_PRIVATE)
+                                .edit();
                         editor.putString(PREF_TREE_URI, null);
                         editor.apply();
                     }
@@ -505,8 +499,7 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
     void openDatabaseFromTree() {
         appendLine("\nOpening First Database in Tree");
         try {
-            SharedPreferences prefs = PreferenceManager
-                    .getDefaultSharedPreferences(this);
+            SharedPreferences prefs = getPreferences(MODE_PRIVATE);
             String treeUriStr = prefs.getString(PREF_TREE_URI, null);
             if (treeUriStr == null) {
                 Utils.errMsg(this, "There is no tree Uri set");
@@ -559,8 +552,7 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
     void openFileFromTree() {
         appendLine("\nOpening First File in Tree");
         try {
-            SharedPreferences prefs = PreferenceManager
-                    .getDefaultSharedPreferences(this);
+            SharedPreferences prefs = getPreferences(MODE_PRIVATE);
             String treeUriStr = prefs.getString(PREF_TREE_URI, null);
             if (treeUriStr == null) {
                 Utils.errMsg(this, "There is no tree Uri set");
