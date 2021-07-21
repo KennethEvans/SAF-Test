@@ -12,6 +12,7 @@
     <string name="action_open_temp_database">Open Database Copy From Chooser</string>
     <string name="action_show_permissions">Show Permissions</string>
     <string name="action_show_info">Info</string>
+    <string name="action_show_playlist_info">Playlist Info</string>
     <string name="image">Image</string>
 
     <!-- Utils -->

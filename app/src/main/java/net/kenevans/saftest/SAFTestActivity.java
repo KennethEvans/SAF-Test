@@ -11,8 +11,8 @@ import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
 import android.provider.DocumentsContract;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -146,6 +146,8 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
             openDatabaseFromSystemFileDialogUsingTempDatabase();
         } else if (id == R.id.action_open_database) {
             openDatabaseFromSystemFileDialog();
+        } else if (id == R.id.action_show_playlists) {
+            showPlaylists();
         } else if (id == R.id.action_clear) {
             clearText();
         }
@@ -206,6 +208,165 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
     }
 
     /**
+     * Shows information about playlists.
+     */
+    private void showPlaylists1() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\nPlaylists\n");
+        Uri collection;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            collection =
+                    MediaStore.Audio.Playlists.getContentUri(MediaStore.VOLUME_EXTERNAL);
+        } else {
+            collection = MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI;
+        }
+        String name, data;
+        long id;
+        // External
+        try (Cursor playListCursor =
+                     this.getContentResolver().query(
+                             collection,
+                             null, null, null, null)) {
+            if (playListCursor == null) {
+                sb.append("Cannot access external playlists").append("\n");
+                append(sb.toString());
+                return;
+            }
+            // DEBUG Get column names
+            sb.append("Available names").append("\n");
+            String[] names = playListCursor.getColumnNames();
+            for (String item : names) {
+                sb.append("    ").append(item).append("\n");
+            }
+            if (playListCursor.getCount() <= 0) {
+                sb.append("No playlists found").append("\n");
+                append(sb.toString());
+                return;
+            }
+//            boolean first = true;
+            for (int i = 0; i < playListCursor.getCount(); i++) {
+                playListCursor.moveToPosition(i);
+                name = playListCursor.getString(
+                        playListCursor.getColumnIndex("name"));
+                sb.append(i).append(" ").append(name).append("\n");
+                // This is apparently the path
+                data = playListCursor.getString(
+                        playListCursor.getColumnIndex(MediaStore.Audio.Media.DATA));
+                sb.append("    ").append(data).append("\n");
+                id = playListCursor.getColumnIndex(MediaStore.Audio.Playlists._ID);
+                sb.append("    id=").append(id).append("\n");
+
+                // Get the playlist from the id
+                String[] projection = null; // All columns
+//                String[] projection = {
+//                        MediaStore.Audio.Media._ID,
+//                        MediaStore.Audio.Media.ARTIST,
+//                        MediaStore.Audio.Media.TITLE,
+//                        MediaStore.Audio.Media.DATA,
+//                        MediaStore.Audio.Media.DISPLAY_NAME,
+//                        MediaStore.Audio.Media.DURATION
+//                };
+                try (Cursor cursor =
+                             this.getContentResolver().query(MediaStore
+                                             .Audio.Playlists.Members.getContentUri
+                                                     ("external", id),
+                                     projection, null, null, null)) {
+                    if (cursor == null) {
+                        sb.append("    Cannot get contents\n");
+                        append(sb.toString());
+                    } else {
+//                        // DEBUG Get column names
+//                        if (first) {
+//                            first = false;
+//                            sb.append("    Available names").append("\n");
+//                            String[] names = cursor.getColumnNames();
+//                            for (String item : names) {
+//                                sb.append("        ").append(item).append
+//                                ("\n");
+//                            }
+//                        }
+                        sb.append("    Tracks: ").append(cursor.getCount())
+                                .append("\n");
+                    }
+                } catch (Exception ex) {
+                    String msg = "    Error getting playlist " + i;
+                    appendLine(msg);
+//                    Utils.excMsg(this, msg, ex);
+                    Log.e(TAG, msg, ex);
+                }
+            }
+            append(sb.toString());
+        } catch (Exception ex) {
+            String msg = "Error getting external playlists";
+            appendLine(msg);
+            Utils.excMsg(this, msg, ex);
+            Log.e(TAG, msg, ex);
+        }
+    }
+
+    /**
+     * Shows information about playlists. Debug version
+     */
+    private void showPlaylists() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\nPlaylists\n");
+        Uri collection;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            collection =
+                    MediaStore.Audio.Playlists.getContentUri(MediaStore.VOLUME_EXTERNAL);
+        } else {
+            collection = MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI;
+        }
+        String name, data;
+        long id;
+        // External
+        try (Cursor playListCursor =
+                     this.getContentResolver().query(
+                             collection,
+                             null, null, null, null)) {
+            if (playListCursor == null) {
+                sb.append("Cannot access external playlists\n");
+                return;
+            }
+            for (int i = 0; i < playListCursor.getCount(); i++) {
+                playListCursor.moveToPosition(i);
+                name = playListCursor.getString(
+                        playListCursor.getColumnIndex("name"));
+                sb.append(i).append(" ").append(name).append("\n");
+                // This is apparently the path
+                data = playListCursor.getString(
+                        playListCursor.getColumnIndex(MediaStore.Audio.Media.DATA));
+                sb.append("    ").append(data).append("\n");
+                id = playListCursor.getColumnIndex(MediaStore.Audio.Playlists._ID);
+                sb.append("    id=").append(id).append("\n");
+
+                // Get the playlist from the id
+                String[] projection = null; // All columns
+                try (Cursor cursor =
+                             this.getContentResolver().query(MediaStore
+                                             .Audio.Playlists.Members.getContentUri
+                                                     ("external", id),
+                                     projection, null, null, null)) {
+                    if (cursor == null) {
+                        sb.append("    Cannot get contents\n");
+                    } else {
+                        sb.append("    Tracks: ").append(cursor.getCount())
+                                .append("\n");
+                    }
+                } catch (Exception ex) {
+                    String msg = "    Error getting playlist " + i;
+                    Log.e(TAG, msg, ex);
+                }
+            }
+        } catch (Exception ex) {
+            String msg = "Error getting external playlists";
+            Utils.excMsg(this, msg, ex);
+            Log.e(TAG, msg, ex);
+        }
+        Log.e(TAG, sb.toString());
+    }
+
+    /**
      * List the files under PREF_TREE_URI with information about them. The
      * information is from uriInfo
      *
@@ -223,8 +384,9 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
             append("\n" + "Files for ");
             String treeDocumentId =
                     DocumentsContract.getTreeDocumentId(treeUri);
-            Uri docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri,
-                    treeDocumentId);
+            Uri docUri =
+                    DocumentsContract.buildDocumentUriUsingTree(treeUri,
+                            treeDocumentId);
             append(docUriInfo(docUri));
 //            appendLine("\n" + "Files for " + treeUri.getLastPathSegment());
 //            // Test
@@ -296,8 +458,9 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
                 new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int item) {
                         dialog.dismiss();
-                        SharedPreferences.Editor editor = getPreferences(MODE_PRIVATE)
-                                .edit();
+                        SharedPreferences.Editor editor =
+                                getPreferences(MODE_PRIVATE)
+                                        .edit();
                         editor.putString(PREF_TREE_URI,
                                 permissionList.get(item).getUri().toString());
                         editor.apply();
@@ -346,8 +509,9 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
                                 Intent.FLAG_GRANT_READ_URI_PERMISSION |
                                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                         // Set the preference to null
-                        SharedPreferences.Editor editor = getPreferences(MODE_PRIVATE)
-                                .edit();
+                        SharedPreferences.Editor editor =
+                                getPreferences(MODE_PRIVATE)
+                                        .edit();
                         editor.putString(PREF_TREE_URI, null);
                         editor.apply();
                     }
@@ -441,7 +605,8 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
 //        sb.append("    last path segment=" + docUri.getPath() + "\n");
         sb.append("    size=").append(sizeStr).append("\n");
         sb.append("    mime type=").append(mimeType).append("\n");
-        sb.append("    last modified=").append(lastModifiedStr).append("\n");
+        sb.append("    last modified=").append(lastModifiedStr).append(
+                "\n");
         sb.append("    canWrite=").append(canWrite).append(" canDelete=").append(canDelete).append(" canMove=").append(canMove).append("\n");
         sb.append("    canCopy=").append(canCopy).append(" canRename=").append(canRename).append(" canCreate=").append(canCreate).append("\n");
         return sb.toString();
@@ -470,7 +635,8 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
     }
 
     /**
-     * Turns a number of bytes into a formatted form as Bytes, MB, KB, GB, TB.
+     * Turns a number of bytes into a formatted form as Bytes, MB, KB,
+     * GB, TB.
      *
      * @param length The given length.
      * @return The formatted String.
@@ -510,10 +676,11 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
                     DocumentsContract.buildChildDocumentsUriUsingTree(treeUri,
                             DocumentsContract.getTreeDocumentId(treeUri));
             List<Uri> children = new ArrayList<>();
-            try (Cursor cursor = this.getContentResolver().query(childrenUri,
-                    new String[]{
-                            DocumentsContract.Document.COLUMN_DOCUMENT_ID},
-                    null, null, null)) {
+            try (Cursor cursor =
+                         this.getContentResolver().query(childrenUri,
+                                 new String[]{
+                                         DocumentsContract.Document.COLUMN_DOCUMENT_ID},
+                                 null, null, null)) {
                 String documentId;
                 Uri documentUri;
                 while (cursor.moveToNext()) {
