@@ -13,6 +13,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -210,67 +211,81 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
     /**
      * Shows information about playlists.
      */
-    private void showPlaylists1() {
+    private void showPlaylists() {
         StringBuilder sb = new StringBuilder();
         sb.append("\nPlaylists\n");
         Uri collection;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= 29) {
+            // Q
             collection =
                     MediaStore.Audio.Playlists.getContentUri(MediaStore.VOLUME_EXTERNAL);
         } else {
             collection = MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI;
         }
-        String name, data;
-        long id;
+        String name, data, info;
+        long addedDate, modifiedDate;
+        long id, duration, totalDuration;
+        int colName, colTitle, colDuration;
         // External
         try (Cursor playListCursor =
                      this.getContentResolver().query(
                              collection,
                              null, null, null, null)) {
             if (playListCursor == null) {
-                sb.append("Cannot access external playlists").append("\n");
+                sb.append("Cannot access external playlists\n");
                 append(sb.toString());
                 return;
-            }
-            // DEBUG Get column names
-            sb.append("Available names").append("\n");
-            String[] names = playListCursor.getColumnNames();
-            for (String item : names) {
-                sb.append("    ").append(item).append("\n");
             }
             if (playListCursor.getCount() <= 0) {
-                sb.append("No playlists found").append("\n");
+                sb.append("No playlists found\n");
                 append(sb.toString());
                 return;
             }
+//            // DEBUG
 //            boolean first = true;
             for (int i = 0; i < playListCursor.getCount(); i++) {
                 playListCursor.moveToPosition(i);
                 name = playListCursor.getString(
                         playListCursor.getColumnIndex("name"));
-                sb.append(i).append(" ").append(name).append("\n");
+                sb.append(i + 1).append(" ").append(name).append("\n");
                 // This is apparently the path
                 data = playListCursor.getString(
                         playListCursor.getColumnIndex(MediaStore.Audio.Media.DATA));
                 sb.append("    ").append(data).append("\n");
-                id = playListCursor.getColumnIndex(MediaStore.Audio.Playlists._ID);
+                addedDate = playListCursor.getLong(
+                        playListCursor.getColumnIndex(MediaStore.Audio.Media.DATE_ADDED));
+                sb.append("    Added: ").append(new Date(1000 * addedDate)).append("\n");
+                modifiedDate = playListCursor.getLong(
+                        playListCursor.getColumnIndex(MediaStore.Audio.Media.DATE_MODIFIED));
+                sb.append("    Modified: ").append(new Date(1000 * modifiedDate)).append("\n");
+                id = playListCursor.getLong(playListCursor.getColumnIndex(MediaStore.Audio.Playlists._ID));
                 sb.append("    id=").append(id).append("\n");
 
                 // Get the playlist from the id
-                String[] projection = null; // All columns
-//                String[] projection = {
-//                        MediaStore.Audio.Media._ID,
-//                        MediaStore.Audio.Media.ARTIST,
-//                        MediaStore.Audio.Media.TITLE,
-//                        MediaStore.Audio.Media.DATA,
-//                        MediaStore.Audio.Media.DISPLAY_NAME,
-//                        MediaStore.Audio.Media.DURATION
-//                };
-                try (Cursor cursor =
-                             this.getContentResolver().query(MediaStore
-                                             .Audio.Playlists.Members.getContentUri
-                                                     ("external", id),
-                                     projection, null, null, null)) {
+//                String[] projection = null; // All columns
+                List<String> projections = new ArrayList<>();
+//                projections.add(MediaStore.Audio.Media._ID);
+                projections.add(MediaStore.Audio.Media.TITLE);
+                if (Build.VERSION.SDK_INT >= 29) {
+                    projections.add(MediaStore.Audio.Media.DURATION);
+                }
+//                projections.add(MediaStore.Audio.Media.ARTIST);
+//                projections.add(MediaStore.Audio.Media.DATA);
+//                projections.add(MediaStore.Audio.Media.DISPLAY_NAME);
+//                projections.add(MediaStore.Audio.Media.ALBUM);
+                String[] projection = new String[projections.size()];
+                projection = projections.toArray(projection);
+                try (
+//                        // Use method from StackOverflow
+//                        Cursor cursor = getPlaylistTracks(this, id)
+                        // Note: There may be a modification for API 29 (Q)
+                        Cursor cursor =
+                                this.getContentResolver().query(MediaStore
+                                                .Audio.Playlists.Members
+                                                .getContentUri
+                                                        ("external", id),
+                                        projection, null, null, null)
+                ) {
                     if (cursor == null) {
                         sb.append("    Cannot get contents\n");
                         append(sb.toString());
@@ -287,9 +302,35 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
 //                        }
                         sb.append("    Tracks: ").append(cursor.getCount())
                                 .append("\n");
+//                        colName =
+//                                cursor.getColumnIndex(MediaStore.Audio
+//                                .Media.DISPLAY_NAME);
+                        colTitle =
+                                cursor.getColumnIndex(MediaStore.Audio.Media.TITLE);
+                        colDuration = Build.VERSION.SDK_INT >= 29 ?
+                                cursor.getColumnIndex(MediaStore.Audio.Media.DURATION) : -1;
+                        totalDuration = 0;
+                        for (int j = 0; j < cursor.getCount(); j++) {
+                            cursor.moveToPosition(j);
+//                            info = cursor.getString(colName);
+//                            sb.append("    Name: ").append(info).append("\n");
+                            info = cursor.getString(colTitle);
+                            sb.append("      ").append(j + 1).append(" ").append(info);
+                            // Duration if available
+                            if (Build.VERSION.SDK_INT >= 29) {
+                                duration = cursor.getLong(colDuration);
+                                totalDuration += duration / 1000;
+                                info = DateUtils.formatElapsedTime(duration / 1000);
+                                sb.append(" ").append(info);
+                            }
+                            sb.append("\n");
+                        }
+                        sb.append("    Total Duration: ")
+                                .append(DateUtils.formatElapsedTime(totalDuration))
+                                .append("\n");
                     }
                 } catch (Exception ex) {
-                    String msg = "    Error getting playlist " + i;
+                    String msg = "    Error getting playlist " + id;
                     appendLine(msg);
 //                    Utils.excMsg(this, msg, ex);
                     Log.e(TAG, msg, ex);
@@ -304,10 +345,36 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
         }
     }
 
+//    /**
+//     * Test routine from StackOverflow.
+//     */
+//    public Uri get_audio_playlist_members_uri(Long playlist_id) {
+//        if (playlist_id == null) {
+//            playlist_id = 0L;
+//        }
+//        //Uri uri_to_use = null;
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+//            uri_to_use =
+//                    MediaStore.Audio.Playlists.getContentUri(MediaStore
+//                    .VOLUME_EXTERNAL)
+//                            .buildUpon()
+//                            .appendEncodedPath(Long.toString(playlist_id))
+//                            .appendEncodedPath("members")
+//                            .build();
+//        } else {
+//            uri_to_use = MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI
+//                    .buildUpon()
+//                    .appendEncodedPath(Long.toString(playlist_id))
+//                    .appendEncodedPath("members")
+//                    .build();
+//        }
+//        return uri_to_use;
+//    }
+
     /**
      * Shows information about playlists. Debug version
      */
-    private void showPlaylists() {
+    private void showPlaylistsDebug() {
         StringBuilder sb = new StringBuilder();
         sb.append("\nPlaylists\n");
         Uri collection;
@@ -567,9 +634,7 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
                 }
             }
         }
-        if (size != Double.NaN) sizeStr =
-
-                prettyFileLength(size);
+        if (!Double.isNaN(size)) sizeStr = prettyFileLength(size);
         if (lastModified != -1) {
             lastModifiedStr = new Date(lastModified).toString();
         }
