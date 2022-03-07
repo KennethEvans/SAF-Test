@@ -2,7 +2,6 @@ package net.kenevans.saftest;
 
 import android.app.AlertDialog;
 import android.content.ContentResolver;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.UriPermission;
@@ -17,7 +16,6 @@ import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
 import android.widget.TextView;
 
 import com.google.android.material.appbar.CollapsingToolbarLayout;
@@ -53,18 +51,9 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
 
         FloatingActionButton fab =
                 findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Clear the view", Snackbar.LENGTH_LONG)
-                        .setAction("Clear", new View.OnClickListener() {
-                            @Override
-                            public void onClick(View view) {
-                                clearText();
-                            }
-                        }).show();
-            }
-        });
+        fab.setOnClickListener(view -> Snackbar.make(view, "Clear the view",
+                Snackbar.LENGTH_LONG)
+                .setAction("Clear", view1 -> clearText()).show());
     }
 
     @Override
@@ -75,7 +64,7 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
         Log.d(TAG, this.getClass().getSimpleName()
                 + ".onActivityResult: requestCode=" + requestCode
                 + " resultCode=" + resultCode);
-        if (requestCode == REQ_GET_TREE && resultCode == RESULT_CANCELED) {
+        if (requestCode == REQ_GET_TREE && resultCode == RESULT_OK) {
             Uri treeUri;
             // Get Uri from Storage Access Framework.
             treeUri = intent.getData();
@@ -86,11 +75,9 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
             editor.apply();
 
             // Persist access permissions.
-            final int takeFlags = intent.getFlags()
-                    & (Intent.FLAG_GRANT_READ_URI_PERMISSION |
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             this.getContentResolver().takePersistableUriPermission(treeUri,
-                    takeFlags);
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION |
+                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         } else if (requestCode == REQ_DB_FILE && resultCode == RESULT_OK) {
             Uri dataUri = intent.getData();
             // This gets an exception
@@ -132,7 +119,7 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
         } else if (id == R.id.action_select_permission) {
             selectPermission();
         } else if (id == R.id.action_request_permission) {
-            requestPremission();
+            requestPermission();
         } else if (id == R.id.action_show_permissions) {
             showPermissions();
         } else if (id == R.id.action_release_permission) {
@@ -184,10 +171,10 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
     }
 
     /**
-     * Uses ACTION_OPEN_DOCUMENT_TREE to request premission for a part of the
+     * Uses ACTION_OPEN_DOCUMENT_TREE to request permission for a part of the
      * file system.
      */
-    private void requestPremission() {
+    private void requestPermission() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION & Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 //        intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, uriToLoad);
@@ -225,7 +212,7 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
         String name, data, info;
         long addedDate, modifiedDate;
         long id, duration, totalDuration;
-        int colName, colTitle, colDuration;
+        int colTitle, colDuration;
         // External
         try (Cursor playListCursor =
                      this.getContentResolver().query(
@@ -243,23 +230,46 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
             }
 //            // DEBUG
 //            boolean first = true;
+            int index;
             for (int i = 0; i < playListCursor.getCount(); i++) {
                 playListCursor.moveToPosition(i);
-                name = playListCursor.getString(
-                        playListCursor.getColumnIndex("name"));
+                index = playListCursor.getColumnIndex("name");
+                if (index >= 0) {
+                    name = playListCursor.getString(index);
+                } else {
+                    name = "NA";
+                }
                 sb.append(i + 1).append(" ").append(name).append("\n");
                 // This is apparently the path
-                data = playListCursor.getString(
-                        playListCursor.getColumnIndex(MediaStore.Audio.Media.DATA));
+                index = playListCursor.getColumnIndex(MediaStore.Audio.Media.DATA);
+                if (index >= 0) {
+                    data = playListCursor.getString(index);
+                } else {
+                    data = "NA";
+                }
                 sb.append("    ").append(data).append("\n");
-                addedDate = playListCursor.getLong(
-                        playListCursor.getColumnIndex(MediaStore.Audio.Media.DATE_ADDED));
-                sb.append("    Added: ").append(new Date(1000 * addedDate)).append("\n");
-                modifiedDate = playListCursor.getLong(
-                        playListCursor.getColumnIndex(MediaStore.Audio.Media.DATE_MODIFIED));
-                sb.append("    Modified: ").append(new Date(1000 * modifiedDate)).append("\n");
-                id = playListCursor.getLong(playListCursor.getColumnIndex(MediaStore.Audio.Playlists._ID));
-                sb.append("    id=").append(id).append("\n");
+                index = playListCursor.getColumnIndex(MediaStore.Audio.Media.DATE_ADDED);
+                if (index >= 0) {
+                    addedDate = playListCursor.getLong(index);
+                    sb.append("    Added: ").append(new Date(1000 * addedDate)).append("\n");
+                } else {
+                    sb.append("    Added: NA").append("\n");
+                }
+                index = playListCursor.getColumnIndex(MediaStore.Audio.Media.DATE_MODIFIED);
+                if (index >= 0) {
+                    modifiedDate = playListCursor.getLong(index);
+                    sb.append("    Modified: ").append(new Date(1000 * modifiedDate)).append("\n");
+                } else {
+                    sb.append("    Modified: NA").append("\n");
+                }
+                index = playListCursor.getColumnIndex(MediaStore.Audio.Playlists._ID);
+                if (index >= 0) {
+                    id = playListCursor.getLong(index);
+                    sb.append("    id=").append(id).append("\n");
+                } else {
+                    id = -1;
+                    sb.append("    id=NA").append("\n");
+                }
 
                 // Get the playlist from the id
 //                String[] projection = null; // All columns
@@ -276,8 +286,6 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
                 String[] projection = new String[projections.size()];
                 projection = projections.toArray(projection);
                 try (
-//                        // Use method from StackOverflow
-//                        Cursor cursor = getPlaylistTracks(this, id)
                         // Note: There may be a modification for API 29 (Q)
                         Cursor cursor =
                                 this.getContentResolver().query(MediaStore
@@ -372,68 +380,6 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
 //    }
 
     /**
-     * Shows information about playlists. Debug version
-     */
-    private void showPlaylistsDebug() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("\nPlaylists\n");
-        Uri collection;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            collection =
-                    MediaStore.Audio.Playlists.getContentUri(MediaStore.VOLUME_EXTERNAL);
-        } else {
-            collection = MediaStore.Audio.Playlists.EXTERNAL_CONTENT_URI;
-        }
-        String name, data;
-        long id;
-        // External
-        try (Cursor playListCursor =
-                     this.getContentResolver().query(
-                             collection,
-                             null, null, null, null)) {
-            if (playListCursor == null) {
-                sb.append("Cannot access external playlists\n");
-                return;
-            }
-            for (int i = 0; i < playListCursor.getCount(); i++) {
-                playListCursor.moveToPosition(i);
-                name = playListCursor.getString(
-                        playListCursor.getColumnIndex("name"));
-                sb.append(i).append(" ").append(name).append("\n");
-                // This is apparently the path
-                data = playListCursor.getString(
-                        playListCursor.getColumnIndex(MediaStore.Audio.Media.DATA));
-                sb.append("    ").append(data).append("\n");
-                id = playListCursor.getColumnIndex(MediaStore.Audio.Playlists._ID);
-                sb.append("    id=").append(id).append("\n");
-
-                // Get the playlist from the id
-                String[] projection = null; // All columns
-                try (Cursor cursor =
-                             this.getContentResolver().query(MediaStore
-                                             .Audio.Playlists.Members.getContentUri
-                                                     ("external", id),
-                                     projection, null, null, null)) {
-                    if (cursor == null) {
-                        sb.append("    Cannot get contents\n");
-                    } else {
-                        sb.append("    Tracks: ").append(cursor.getCount())
-                                .append("\n");
-                    }
-                } catch (Exception ex) {
-                    String msg = "    Error getting playlist " + i;
-                    Log.e(TAG, msg, ex);
-                }
-            }
-        } catch (Exception ex) {
-            String msg = "Error getting external playlists";
-            Utils.excMsg(this, msg, ex);
-            Log.e(TAG, msg, ex);
-        }
-        Log.e(TAG, sb.toString());
-    }
-
-    /**
      * List the files under PREF_TREE_URI with information about them. The
      * information is from uriInfo
      *
@@ -522,16 +468,14 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(getText(R.string.action_select_permission));
         builder.setSingleChoiceItems(items, selected,
-                new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int item) {
-                        dialog.dismiss();
-                        SharedPreferences.Editor editor =
-                                getPreferences(MODE_PRIVATE)
-                                        .edit();
-                        editor.putString(PREF_TREE_URI,
-                                permissionList.get(item).getUri().toString());
-                        editor.apply();
-                    }
+                (dialog, item) -> {
+                    dialog.dismiss();
+                    SharedPreferences.Editor editor =
+                            getPreferences(MODE_PRIVATE)
+                                    .edit();
+                    editor.putString(PREF_TREE_URI,
+                            permissionList.get(item).getUri().toString());
+                    editor.apply();
                 });
         AlertDialog alert = builder.create();
         alert.show();
@@ -566,22 +510,20 @@ public class SAFTestActivity extends AppCompatActivity implements IConstants {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(getText(R.string.action_select_permission));
         builder.setSingleChoiceItems(items, selected,
-                new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int item) {
-                        dialog.dismiss();
-                        Uri uri = permissionList.get(item).getUri();
-                        ContentResolver resolver =
-                                SAFTestActivity.this.getContentResolver();
-                        resolver.releasePersistableUriPermission(uri,
-                                Intent.FLAG_GRANT_READ_URI_PERMISSION |
-                                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                        // Set the preference to null
-                        SharedPreferences.Editor editor =
-                                getPreferences(MODE_PRIVATE)
-                                        .edit();
-                        editor.putString(PREF_TREE_URI, null);
-                        editor.apply();
-                    }
+                (dialog, item) -> {
+                    dialog.dismiss();
+                    Uri uri1 = permissionList.get(item).getUri();
+                    ContentResolver resolver1 =
+                            SAFTestActivity.this.getContentResolver();
+                    resolver1.releasePersistableUriPermission(uri1,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION |
+                                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    // Set the preference to null
+                    SharedPreferences.Editor editor =
+                            getPreferences(MODE_PRIVATE)
+                                    .edit();
+                    editor.putString(PREF_TREE_URI, null);
+                    editor.apply();
                 });
         AlertDialog alert = builder.create();
         alert.show();

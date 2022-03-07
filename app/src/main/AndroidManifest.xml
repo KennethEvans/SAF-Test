@@ -12,8 +12,8 @@
         android:theme="@style/Theme.SAFTest">
         <activity
             android:name=".SAFTestActivity"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.SAFTest.NoActionBar">
+            android:theme="@style/Theme.SAFTest.NoActionBar"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
